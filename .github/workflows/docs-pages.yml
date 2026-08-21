@@ -40,6 +40,21 @@ jobs:
       contents: read
       pages: read
     steps:
+      # `release:verify` below owns the decision and is the only gate that can
+      # make it: the version check needs the checked-out manifests and the
+      # installed release scripts. Reading the dispatch ref needs neither, so
+      # the one mistake that reaches this workflow most often — a dispatch from
+      # a branch — is rejected here in seconds instead of after a full monorepo
+      # install. The prefix is the dsh family's, and ci-workflow.spec.ts pins it
+      # to `releaseFamily('dsh').tagPrefix` so the two cannot drift.
+      - name: Reject a ref that is not a dsh-v* tag
+        if: ${{ !startsWith(github.ref, 'refs/tags/dsh-v') }}
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+        run: |
+          echo "::error::Deploy documentation publishes a released snapshot from a dsh-v* tag. Dispatched ref: $DISPATCH_REF"
+          exit 1
+
       # Complete history: the release scripts read tags.
       - uses: actions/checkout@v6
         with:

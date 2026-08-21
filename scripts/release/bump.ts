@@ -12,7 +12,8 @@
  * repository state.
  *
  * The version lands in the manifests, the lockfile follows, and a human creates
- * the tag after the commit merges. CI never writes to the repository.
+ * the tag after the commit merges by running `release:tag`, which derives it from
+ * the merged tree ([tag.ts](./tag.ts)). CI never writes to the repository.
  */
 
 import { globSync, readFileSync, writeFileSync } from 'node:fs'
@@ -410,10 +411,11 @@ function main(): void {
   }
   capture('git', ['add', 'pnpm-lock.yaml', ...planned.map(entry => entry.manifestPath)])
   capture('git', ['commit', '-m', `release(${family.id}): ${summary}`])
-  console.log('release bump: committed. After this merges to master, tag it:')
-  for (const tag of [...new Set(planned.map(entry => entry.tag).filter(tag => tag !== undefined))]) {
-    console.log(`  git tag ${tag} <merge commit> && git push origin ${tag}`)
-  }
+  const tags = [...new Set(planned.map(entry => entry.tag).filter(tag => tag !== undefined))]
+  console.log('release bump: committed. After this merges to master, create the tags it publishes from:')
+  console.log(`  pnpm run release:tag --family ${family.id} --push`)
+  console.log(`release bump: that tags the merge commit as ${String(tags.length)} tag(s):`)
+  for (const tag of tags) console.log(`  ${tag}`)
 }
 
 if (isEntry(import.meta.url)) main()

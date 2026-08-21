@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import * as yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
+import { releaseFamily } from './release/families.ts'
 
 const root = resolve(import.meta.dirname, '..')
 const runnerPrivatePnpmDestination = '${{ runner.temp }}/setup-pnpm'
@@ -518,6 +519,25 @@ describe('Documentation site publication', () => {
 
     // The environment owns the deployment tag policy and the required reviewers.
     expect(deploy.environment).toMatchObject({ name: 'github-pages' })
+  })
+
+  it('rejects a ref that is not a release tag before the install runs', () => {
+    const workflow = loadWorkflow('.github/workflows/docs-pages.yml')
+    const build = workflowJob(workflow, 'build')
+    if (!Array.isArray(build.steps)) throw new TypeError('Documentation deployment must define build steps')
+    const steps = build.steps.filter(isRecord)
+
+    // release:verify makes the same rejection, but only once the checkout and a
+    // monorepo install have paid for it. The dispatch ref is readable before
+    // either, so the guard runs first or it buys nothing.
+    const [guard] = steps
+    const installIndex = steps.findIndex(step => step.name === 'Install (immutable)')
+    expect(guard).toMatchObject({ name: 'Reject a ref that is not a dsh-v* tag' })
+    expect(installIndex).toBeGreaterThan(0)
+
+    // One tag prefix across the release scripts and every workflow that gates on
+    // one: a prefix typed into YAML cannot drift from the family that owns it.
+    expect(guard?.if).toContain(`refs/tags/${releaseFamily('dsh').tagPrefix}`)
   })
 })
 
